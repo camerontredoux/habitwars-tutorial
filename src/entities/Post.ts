@@ -1,23 +1,30 @@
 import { Entity, PrimaryKey, Property } from "@mikro-orm/core";
-import { v4 } from "uuid";
+import { Field, ObjectType } from "type-graphql";
 
+@ObjectType()
 @Entity()
 export class Post {
-  @PrimaryKey({ type: "uuid" })
-  _id: string = v4();
+  @Field()
+  @PrimaryKey()
+  _id!: number;
 
+  @Field()
   @Property({ type: "date" })
   createdAt: Date = new Date();
 
+  @Field()
   @Property({ type: "date", onUpdate: () => new Date() })
   updatedAt: Date = new Date();
 
+  @Field()
   @Property()
   name!: string;
 
+  @Field()
   @Property()
-  email!: string;
+  email: string;
 
-  @Property({ nullable: true })
-  age?: number;
+  @Field()
+  @Property()
+  title!: string;
 }
