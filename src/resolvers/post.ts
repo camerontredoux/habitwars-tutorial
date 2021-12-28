@@ -61,12 +61,11 @@ export class PostResolver {
 
   @Mutation(() => Boolean)
   async deletePost(@Arg("id") id: number, @Ctx() ctx: MyContext) {
-    try {
-      const post = await ctx.em.getRepository(Post).findOneOrFail({ id });
-      await ctx.em.getRepository(Post).removeAndFlush(post);
-      return true;
-    } catch (err) {
+    const post = await ctx.em.findOne(Post, { id });
+    if (!post) {
       return false;
     }
+    await ctx.em.removeAndFlush(post);
+    return true;
   }
 }
