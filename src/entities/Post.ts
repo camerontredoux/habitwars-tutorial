@@ -6,11 +6,11 @@ import { Field, ObjectType } from "type-graphql";
 export class Post {
   @Field()
   @PrimaryKey()
-  _id!: number;
+  id: number;
 
   @Field()
   @Property()
-  title!: string;
+  title: string;
 
   @Field()
   @Property({ type: "date" })
