@@ -1,6 +1,23 @@
 import { Post } from "../entities/Post";
 import { MyContext } from "../types";
-import { Arg, Ctx, Mutation, Query, Resolver } from "type-graphql";
+import {
+  Arg,
+  Ctx,
+  Field,
+  InputType,
+  Mutation,
+  Query,
+  Resolver,
+} from "type-graphql";
+
+@InputType()
+class PostArguments {
+  @Field()
+  id: number;
+
+  @Field()
+  title: string;
+}
 
 @Resolver()
 export class PostResolver {
@@ -16,28 +33,26 @@ export class PostResolver {
 
   @Mutation(() => Post)
   async createPost(
-    @Arg("id") id: number,
-    @Arg("title") title: string,
+    @Arg("options") options: PostArguments,
     @Ctx() ctx: MyContext
   ) {
-    const post = ctx.em.create(Post, { id, title });
+    const post = ctx.em.create(Post, { id: options.id, title: options.title });
     await ctx.em.persistAndFlush(post);
     return post;
   }
 
   @Mutation(() => Post, { nullable: true })
   async updatePost(
-    @Arg("id") id: number,
-    @Arg("title") title: string,
+    @Arg("options") options: PostArguments,
     @Ctx() ctx: MyContext
   ) {
-    const post = await ctx.em.findOne(Post, { id });
+    const post = await ctx.em.findOne(Post, { id: options.id });
     if (!post) {
       return null;
     }
 
-    if (typeof title !== "undefined") {
-      post.title = title;
+    if (typeof options.title !== "undefined") {
+      post.title = options.title;
       await ctx.em.persistAndFlush(post);
     }
 

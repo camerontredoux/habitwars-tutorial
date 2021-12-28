@@ -10,7 +10,7 @@ import {
   Resolver,
 } from "type-graphql";
 
-import argon2, { hash } from "argon2";
+import argon2 from "argon2";
 
 @InputType()
 class UserArguments {
