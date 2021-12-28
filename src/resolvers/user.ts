@@ -125,11 +125,14 @@ export class UserResolver {
         errors: [
           {
             field: "password",
-            message: "Incorrect password",
+            message: "Incorrect password!",
           },
         ],
       };
     }
+
+    ctx.req.session!.userId = user.id;
+    ctx.req.session!.save();
 
     return { user };
   }
