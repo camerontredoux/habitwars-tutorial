@@ -12,6 +12,7 @@ import {
 } from "type-graphql";
 
 import argon2 from "argon2";
+import { __cookie__ } from "../constants";
 
 @InputType()
 class UserArguments {
@@ -42,6 +43,15 @@ class UserResponse {
 
 @Resolver()
 export class UserResolver {
+  @Query(() => User, { nullable: true })
+  async me(@Ctx() ctx: MyContext) {
+    if (!ctx.req.session!.userId) {
+      return null;
+    }
+
+    return await ctx.em.findOne(User, { id: ctx.req.session!.userId });
+  }
+
   @Query(() => [User])
   async users(@Ctx() ctx: MyContext) {
     return await ctx.em.find(User, {});
@@ -68,12 +78,12 @@ export class UserResolver {
       };
     }
 
-    if (options.password.length < 5) {
+    if (options.password.length < 3) {
       return {
         errors: [
           {
             field: "password",
-            message: "Password must be five characters or longer",
+            message: "Password must be longer than 2 characters",
           },
         ],
       };
@@ -97,6 +107,9 @@ export class UserResolver {
         };
       }
     }
+
+    ctx.req.session!.userId = user.id;
+    ctx.req.session!.save();
 
     return { user };
   }
@@ -125,7 +138,7 @@ export class UserResolver {
         errors: [
           {
             field: "password",
-            message: "Incorrect password!",
+            message: "Incorrect password",
           },
         ],
       };
@@ -135,5 +148,20 @@ export class UserResolver {
     ctx.req.session!.save();
 
     return { user };
+  }
+
+  @Mutation(() => Boolean)
+  logout(@Ctx() ctx: MyContext) {
+    return new Promise((resolve) =>
+      ctx.req.session.destroy((err) => {
+        if (err) {
+          console.log(err);
+          resolve(false);
+          return;
+        }
+        ctx.res.clearCookie(__cookie__);
+        resolve(true);
+      })
+    );
   }
 }
