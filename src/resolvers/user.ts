@@ -109,7 +109,7 @@ export class UserResolver {
     @Arg("usernameOrEmail") usernameOrEmail: string,
     @Arg("password") password: string,
     @Ctx() ctx: MyContext
-  ): Promise<UserResponse> {
+  ) {
     const user = await ctx.em.findOne(User, {
       $or: [{ username: usernameOrEmail }, { email: usernameOrEmail }],
     });
@@ -118,7 +118,7 @@ export class UserResolver {
       return {
         errors: [
           {
-            field: "username",
+            field: "usernameOrEmail",
             message: "Login failed; Invalid username or password.",
           },
         ],
