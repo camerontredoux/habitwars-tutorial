@@ -4,7 +4,6 @@ import {
   Arg,
   Ctx,
   Field,
-  InputType,
   Mutation,
   ObjectType,
   Query,
@@ -13,15 +12,8 @@ import {
 
 import argon2 from "argon2";
 import { __cookie__ } from "../constants";
-
-@InputType()
-class UserArguments {
-  @Field()
-  username: string;
-
-  @Field()
-  password: string;
-}
+import UserArguments from "../types/UserArguments";
+import { validateRegister } from "../utils/validateRegister";
 
 @ObjectType()
 class FieldError {
@@ -43,8 +35,17 @@ class UserResponse {
 
 @Resolver()
 export class UserResolver {
+  @Mutation(() => Boolean)
+  async forgotPassword(
+    @Arg("email") email: string,
+    @Ctx() ctx: MyContext
+  ): Promise<boolean> {
+    const user = await ctx.em.findOne(User, { email });
+    return true;
+  }
+
   @Query(() => User, { nullable: true })
-  async me(@Ctx() ctx: MyContext) {
+  async me(@Ctx() ctx: MyContext): Promise<User | null> {
     if (!ctx.req.session!.userId) {
       return null;
     }
@@ -53,12 +54,15 @@ export class UserResolver {
   }
 
   @Query(() => [User])
-  async users(@Ctx() ctx: MyContext) {
+  async users(@Ctx() ctx: MyContext): Promise<User[]> {
     return await ctx.em.find(User, {});
   }
 
   @Query(() => User)
-  async user(@Arg("id") id: number, @Ctx() ctx: MyContext) {
+  async user(
+    @Arg("id") id: number,
+    @Ctx() ctx: MyContext
+  ): Promise<User | null> {
     return await ctx.em.findOne(User, { id });
   }
 
@@ -66,33 +70,19 @@ export class UserResolver {
   async register(
     @Arg("options") options: UserArguments,
     @Ctx() ctx: MyContext
-  ) {
-    if (options.username.length === 0) {
-      return {
-        errors: [
-          {
-            field: "username",
-            message: "Username cannot be empty",
-          },
-        ],
-      };
+  ): Promise<UserResponse> {
+    const errors = validateRegister(options);
+    if (errors) {
+      return { errors };
     }
 
-    if (options.password.length < 3) {
-      return {
-        errors: [
-          {
-            field: "password",
-            message: "Password must be longer than 2 characters",
-          },
-        ],
-      };
-    }
     const hashedPassword = await argon2.hash(options.password);
     const user = ctx.em.create(User, {
       username: options.username,
       password: hashedPassword,
+      email: options.email,
     });
+
     try {
       await ctx.em.persistAndFlush(user);
     } catch (err) {
@@ -101,7 +91,7 @@ export class UserResolver {
           errors: [
             {
               field: "username",
-              message: "Username already exists",
+              message: "This username is already in use.",
             },
           ],
         };
@@ -115,9 +105,13 @@ export class UserResolver {
   }
 
   @Mutation(() => UserResponse)
-  async login(@Arg("options") options: UserArguments, @Ctx() ctx: MyContext) {
+  async login(
+    @Arg("usernameOrEmail") usernameOrEmail: string,
+    @Arg("password") password: string,
+    @Ctx() ctx: MyContext
+  ): Promise<UserResponse> {
     const user = await ctx.em.findOne(User, {
-      username: options.username,
+      $or: [{ username: usernameOrEmail }, { email: usernameOrEmail }],
     });
 
     if (!user) {
@@ -125,20 +119,20 @@ export class UserResolver {
         errors: [
           {
             field: "username",
-            message: "Could not find a user with that username",
+            message: "Login failed; Invalid username or password.",
           },
         ],
       };
     }
 
-    const valid = await argon2.verify(user.password, options.password);
+    const valid = await argon2.verify(user.password, password);
 
     if (!valid) {
       return {
         errors: [
           {
             field: "password",
-            message: "Incorrect password",
+            message: "Login failed; Invalid username or password.",
           },
         ],
       };
@@ -151,7 +145,7 @@ export class UserResolver {
   }
 
   @Mutation(() => Boolean)
-  logout(@Ctx() ctx: MyContext) {
+  logout(@Ctx() ctx: MyContext): Promise<boolean> {
     return new Promise((resolve) =>
       ctx.req.session.destroy((err) => {
         if (err) {

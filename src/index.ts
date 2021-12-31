@@ -12,6 +12,8 @@ import connectRedis from "connect-redis";
 import session from "express-session";
 import { MyContext } from "./types";
 import cors from "cors";
+import { sendEmail } from "./utils/sendEmail";
+import { User } from "./entities/User";
 
 declare module "express-session" {
   export interface Session {
