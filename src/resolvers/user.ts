@@ -37,16 +37,78 @@ class UserResponse {
 
 @Resolver()
 export class UserResolver {
-  @Mutation(() => Boolean)
+  @Mutation(() => UserResponse)
+  async changePassword(
+    @Arg("token") token: string,
+    @Arg("newPassword") newPassword: string,
+    @Ctx() ctx: MyContext
+  ): Promise<UserResponse> {
+    if (newPassword.length < 8) {
+      return {
+        errors: [
+          {
+            field: "newPassword",
+            message: "Password must be at least 8 characters.",
+          },
+        ],
+      };
+    }
+
+    const userId = await ctx.redisClient.get(FORGOT_PASSWORD_PREFIX + token);
+    if (!userId) {
+      return {
+        errors: [
+          {
+            field: "token",
+            message: "Token expired.",
+          },
+        ],
+      };
+    }
+
+    const user = await ctx.em.findOne(User, { id: parseInt(userId) });
+
+    if (!user) {
+      return {
+        errors: [
+          {
+            field: "token",
+            message: "Token belongs a non-existent user.",
+          },
+        ],
+      };
+    }
+
+    const hashedPassword = await argon2.hash(newPassword);
+    user.password = hashedPassword;
+
+    await ctx.em.persistAndFlush(user);
+
+    ctx.req.session!.userId = user.id;
+
+    return { user };
+  }
+
+  @Mutation(() => UserResponse)
   async forgotPassword(
     @Arg("email") email: string,
     @Ctx() ctx: MyContext
-  ): Promise<boolean> {
+  ): Promise<UserResponse> {
     const user = await ctx.em.findOne(User, { email });
 
-    if (!user) return true;
+    if (!user) {
+      return {
+        errors: [
+          {
+            field: "email",
+            message: "This is an invalid email address.",
+          },
+        ],
+      };
+    }
 
     const token = v4();
+
     await ctx.redisClient.set(
       FORGOT_PASSWORD_PREFIX + token,
       user.id,
@@ -59,7 +121,7 @@ export class UserResolver {
       `<a href="http://localhost:3000/change-password/${token}">Change Password</a>`
     );
 
-    return true;
+    return { user };
   }
 
   @Query(() => User, { nullable: true })
@@ -117,7 +179,6 @@ export class UserResolver {
     }
 
     ctx.req.session!.userId = user.id;
-    ctx.req.session!.save();
 
     return { user };
   }
@@ -157,7 +218,6 @@ export class UserResolver {
     }
 
     ctx.req.session!.userId = user.id;
-    ctx.req.session!.save();
 
     return { user };
   }
