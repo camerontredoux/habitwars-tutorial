@@ -11,9 +11,11 @@ import {
 } from "type-graphql";
 
 import argon2 from "argon2";
-import { __cookie__ } from "../constants";
+import { COOKIE_NAME, FORGOT_PASSWORD_PREFIX } from "../constants";
 import UserArguments from "../types/UserArguments";
 import { validateRegister } from "../utils/validateRegister";
+import { sendEmail } from "../utils/sendEmail";
+import { v4 } from "uuid";
 
 @ObjectType()
 class FieldError {
@@ -41,6 +43,22 @@ export class UserResolver {
     @Ctx() ctx: MyContext
   ): Promise<boolean> {
     const user = await ctx.em.findOne(User, { email });
+
+    if (!user) return true;
+
+    const token = v4();
+    await ctx.redisClient.set(
+      FORGOT_PASSWORD_PREFIX + token,
+      user.id,
+      "ex",
+      60 * 60 * 24
+    );
+
+    await sendEmail(
+      user.email,
+      `<a href="http://localhost:3000/change-password/${token}">Change Password</a>`
+    );
+
     return true;
   }
 
@@ -153,7 +171,7 @@ export class UserResolver {
           resolve(false);
           return;
         }
-        ctx.res.clearCookie(__cookie__);
+        ctx.res.clearCookie(COOKIE_NAME);
         resolve(true);
       })
     );

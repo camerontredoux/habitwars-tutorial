@@ -1,19 +1,17 @@
 import { MikroORM } from "@mikro-orm/core";
-import { __cookie__, __prod__ } from "./constants";
-import config from "./mikro-orm.config";
-import express from "express";
-import { ApolloServer } from "apollo-server-express";
 import { ApolloServerPluginLandingPageGraphQLPlayground } from "apollo-server-core";
+import { ApolloServer } from "apollo-server-express";
+import connectRedis from "connect-redis";
+import cors from "cors";
+import express from "express";
+import session from "express-session";
+import Redis from "ioredis";
 import { buildSchema } from "type-graphql";
+import { COOKIE_NAME, __prod__ } from "./constants";
+import config from "./mikro-orm.config";
 import { PostResolver } from "./resolvers/post";
 import { UserResolver } from "./resolvers/user";
-import redis from "redis";
-import connectRedis from "connect-redis";
-import session from "express-session";
 import { MyContext } from "./types";
-import cors from "cors";
-import { sendEmail } from "./utils/sendEmail";
-import { User } from "./entities/User";
 
 declare module "express-session" {
   export interface Session {
@@ -28,7 +26,7 @@ const main = async () => {
   const app = express();
 
   const RedisStore = connectRedis(session);
-  const redisClient = redis.createClient();
+  const redisClient = new Redis();
 
   app.set("trust proxy", 1);
   app.use(
@@ -37,9 +35,10 @@ const main = async () => {
       credentials: true,
     })
   );
+
   app.use(
     session({
-      name: __cookie__,
+      name: COOKIE_NAME,
       store: new RedisStore({
         client: redisClient,
         disableTouch: true,
@@ -61,7 +60,12 @@ const main = async () => {
       resolvers: [PostResolver, UserResolver],
       validate: false,
     }),
-    context: ({ req, res }): MyContext => ({ em: orm.em, req, res }),
+    context: ({ req, res }): MyContext => ({
+      em: orm.em,
+      req,
+      res,
+      redisClient,
+    }),
     plugins: [ApolloServerPluginLandingPageGraphQLPlayground()],
   });
 
