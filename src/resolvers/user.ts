@@ -83,6 +83,7 @@ export class UserResolver {
     user.password = hashedPassword;
 
     await ctx.em.persistAndFlush(user);
+    await ctx.redisClient.del(FORGOT_PASSWORD_PREFIX + token);
 
     ctx.req.session!.userId = user.id;
 
